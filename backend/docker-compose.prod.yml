@@ -1,0 +1,163 @@
+# Shared-schema tenancy. See README.md for operator migrations and provisioning.
+services:
+  StyleDesk-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: styledesk-server:prod
+    container_name: StyleDesk-server
+    restart: unless-stopped
+    # Host 4400 → container 4000 for ZKTeco ADMS push (http://<VPS_IP>:4400/iclock).
+    ports:
+      - "${ADMS_HOST_PORT:-4400}:4000"
+    environment: &styledesk-runtime-environment
+      DATABASE_URL: postgresql://${RUNTIME_DATABASE_ROLE:-styledesk_runtime}:${RUNTIME_DATABASE_PASSWORD:?Set runtime password}@StyleDesk-postgres:5432/${POSTGRES_DB:-styledesk_tenancy}
+      NODE_ENV: production
+      PLATFORM_DATABASE_URL: postgresql://${PLATFORM_DATABASE_ROLE:-styledesk_platform}:${PLATFORM_DATABASE_PASSWORD:?Set platform database password}@StyleDesk-postgres:5432/${POSTGRES_DB:-styledesk_tenancy}
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:?Set separate platform JWT secret}
+      PAYMENT_ENCRYPTION_KEY: ${PAYMENT_ENCRYPTION_KEY:?Set 64-hex encryption key}
+      PLATFORM_HOST: ${PLATFORM_HOST:-styledesk.musfiqdehan.com}
+      PLATFORM_PUBLIC_URL: ${PLATFORM_PUBLIC_URL:-https://styledesk.musfiqdehan.com}
+      PUBLIC_URL_SCHEME: ${PUBLIC_URL_SCHEME:-https}
+      PUBLIC_URL_PORT: ${PUBLIC_URL_PORT:-}
+      DOMAIN_CNAME_TARGET: ${DOMAIN_CNAME_TARGET:-styledesk.musfiqdehan.com}
+      DOMAIN_PUBLIC_IP: ${DOMAIN_PUBLIC_IP:-}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT secret}
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-styledesk.musfiqdehan.com}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      MAIL_SECURE: ${MAIL_SECURE:-true}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      REDIS_HOST: StyleDesk-redis
+      REDIS_PORT: "6379"
+    volumes:
+      - StyleDesk_uploads:/app/uploads
+    depends_on:
+      StyleDesk-redis:
+        condition: service_healthy
+      StyleDesk-postgres:
+        condition: service_healthy
+    networks:
+      - traefik_proxy
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
+      - "traefik.http.services.StyleDesk-api.loadbalancer.server.port=4000"
+
+      # Strip /api before hitting NestJS (routes are rooted at /auth, /bussiness-info, …)
+      - "traefik.http.middlewares.StyleDesk-api-stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.middlewares.StyleDesk-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.StyleDesk-redirect.redirectscheme.permanent=true"
+
+      # ── Swagger UI + OpenAPI JSON (Nest serves them under /api/docs itself) ──
+      - "traefik.http.routers.StyleDesk-docs.rule=(${TENANT_HOST_RULE:?Set wildcard tenant host rule}) && PathPrefix(`/api/docs`)"
+      - "traefik.http.routers.StyleDesk-docs.entrypoints=websecure"
+      - "traefik.http.routers.StyleDesk-docs.tls=true"
+      - "traefik.http.routers.StyleDesk-docs.tls.certresolver=${TLS_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.StyleDesk-docs.priority=130"
+      - "traefik.http.routers.StyleDesk-docs.service=StyleDesk-api"
+
+      # ── HTTPS API router (higher priority than frontend) ──
+      - "traefik.http.routers.StyleDesk-api.rule=(${TENANT_HOST_RULE:?Set wildcard tenant host rule}) && (PathPrefix(`/api/socket.io`) || PathPrefix(`/api/iclock`))"
+      - "traefik.http.routers.StyleDesk-api.entrypoints=websecure"
+      - "traefik.http.routers.StyleDesk-api.tls=true"
+      - "traefik.http.routers.StyleDesk-api.tls.certresolver=${TLS_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.StyleDesk-api.priority=125"
+      - "traefik.http.routers.StyleDesk-api.service=StyleDesk-api"
+      - "traefik.http.routers.StyleDesk-api.middlewares=StyleDesk-api-stripprefix"
+
+      # ── HTTP ADMS for ZKTeco (no HTTPS redirect — many devices cannot do TLS) ──
+      - "traefik.http.routers.StyleDesk-iclock-http.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/api/iclock`)"
+      - "traefik.http.routers.StyleDesk-iclock-http.entrypoints=web"
+      - "traefik.http.routers.StyleDesk-iclock-http.priority=135"
+      - "traefik.http.routers.StyleDesk-iclock-http.middlewares=StyleDesk-api-stripprefix"
+      - "traefik.http.routers.StyleDesk-iclock-http.service=StyleDesk-api"
+
+      # ── HTTP → HTTPS for /api (skip ACME challenge path and /api/iclock) ──
+      - "traefik.http.routers.StyleDesk-api-http.rule=(${TENANT_HOST_RULE:?Set wildcard tenant host rule}) && (PathPrefix(`/api/socket.io`) || PathPrefix(`/api/iclock`)) && !PathPrefix(`/api/iclock`) && !PathPrefix(`/.well-known/acme-challenge/`)"
+      - "traefik.http.routers.StyleDesk-api-http.entrypoints=web"
+      - "traefik.http.routers.StyleDesk-api-http.priority=125"
+      - "traefik.http.routers.StyleDesk-api-http.middlewares=StyleDesk-redirect"
+      - "traefik.http.routers.StyleDesk-api-http.service=StyleDesk-api"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:4000/health', (res) => process.exit(res.statusCode >= 200 && res.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # Only this worker can write generated StyleDesk routes. No Docker socket mount.
+  StyleDesk-domain-worker:
+    image: styledesk-server:prod
+    restart: unless-stopped
+    environment:
+      <<: *styledesk-runtime-environment
+      DOMAIN_WORKER: "true"
+      STYLEDESK_TRAEFIK_DIR: /app/generated
+    volumes:
+      - styledesk_traefik_generated:/app/generated
+    depends_on:
+      StyleDesk-server:
+        condition: service_healthy
+    networks:
+      - backend
+      - traefik_proxy
+    labels:
+      - "traefik.enable=false"
+
+
+  StyleDesk-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set operator password}
+      POSTGRES_DB: ${POSTGRES_DB:-styledesk_tenancy}
+    container_name: StyleDesk-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  StyleDesk-redis:
+    image: redis:7-alpine
+    container_name: StyleDesk-redis
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  traefik_proxy:
+    external: true
+    name: traefik_proxy
+  backend:
+    driver: bridge
+
+volumes:
+  styledesk_traefik_generated:
+    external: true
+    name: styledesk_traefik_generated
+  postgres_data:
+    name: ${TENANCY_DB_VOLUME:-styledesk_tenancy_pg16_prod}
+  StyleDesk_uploads:
+    name: StyleDesk_uploads
