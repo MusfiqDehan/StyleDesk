@@ -1,0 +1,96 @@
+# Shared-schema tenancy. See README.md for operator migrations and provisioning.
+services:
+  server:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - server_node_modules:/app/node_modules
+      - server_dist:/app/dist
+      - npm_cache_server:/root/.npm
+    command: sh -c "npm install --prefer-offline && npm run start:dev"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://${RUNTIME_DATABASE_ROLE:-styledesk_runtime}:${RUNTIME_DATABASE_PASSWORD:?Set runtime password}@postgres:5432/${POSTGRES_DB:-styledesk_tenancy}
+      PLATFORM_DATABASE_URL: postgresql://${PLATFORM_DATABASE_ROLE:-styledesk_platform}:${PLATFORM_DATABASE_PASSWORD:?Set platform database password}@postgres:5432/${POSTGRES_DB:-styledesk_tenancy}
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:?Set separate platform JWT secret}
+      PAYMENT_ENCRYPTION_KEY: ${PAYMENT_ENCRYPTION_KEY:?Set 64-hex encryption key}
+      PLATFORM_HOST: ${PLATFORM_HOST:-localhost}
+      PLATFORM_PUBLIC_URL: ${PLATFORM_PUBLIC_URL:-http://localhost:3000}
+      PUBLIC_URL_SCHEME: ${PUBLIC_URL_SCHEME:-http}
+      PUBLIC_URL_PORT: ${PUBLIC_URL_PORT:-3000}
+      DOMAIN_CNAME_TARGET: ${DOMAIN_CNAME_TARGET:-styledesk.musfiqdehan.com}
+      DOMAIN_PUBLIC_IP: ${DOMAIN_PUBLIC_IP:-}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT secret}
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      PORT: "4000"
+      NODE_ENV: development
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      MAIL_SECURE: ${MAIL_SECURE:-true}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "800"
+      TSC_WATCHFILE: UseFsEventsWithFallbackDynamicPolling
+      TSC_WATCHDIRECTORY: RecursiveDirectoryUsingDynamicPriorityPolling
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:4000/health', (res) => process.exit(res.statusCode >= 200 && res.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-styledesk_tenancy}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set operator password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB:-styledesk_tenancy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+    name: ${TENANCY_DB_VOLUME:-styledesk_tenancy_pg16}
+  server_node_modules:
+  server_dist:
+  npm_cache_server:
