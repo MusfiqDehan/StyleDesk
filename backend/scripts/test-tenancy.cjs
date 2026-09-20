@@ -1,0 +1,72 @@
+// Real PostgreSQL assertions; requires a dedicated disposable *_test database.
+const assert = require('node:assert/strict');
+const { randomUUID, createHash } = require('node:crypto');
+const { Client: PgClient } = require('pg');
+const { DataSource } = require('typeorm');
+const { join } = require('node:path');
+const { TenantMiddleware } = require('../dist/src/tenancy/tenant.middleware.js');
+const { tenantStorage } = require('../dist/src/tenancy/tenant-context.js');
+const { ScopedDataSource } = require('../dist/src/tenancy/scoped-orm.module.js');
+const { AdmsCommandQueue } = require('../dist/src/biometric/adms-command.queue.js');
+
+(async () => {
+  if (!process.env.TEST_DATABASE_URL || !process.env.TEST_OPERATOR_DATABASE_URL) throw new Error('Set TEST_DATABASE_URL (runtime role) and TEST_OPERATOR_DATABASE_URL (operator role)');
+  const operator = new PgClient({ connectionString: process.env.TEST_OPERATOR_DATABASE_URL });
+  await operator.connect();
+  const { rows: [database] } = await operator.query('SELECT current_database() AS name');
+  if (!database.name.endsWith('_test')) throw new Error('Use a disposable database ending in _test');
+  const ds = new DataSource({ type:'postgres',url:process.env.TEST_DATABASE_URL,entities:[join(__dirname,'../dist/src/**/*.entity.js')],synchronize:false,installExtensions:false,extra:{max:1} });
+  await ds.initialize();
+  const [role] = await ds.query('SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user');
+  assert.equal(role.rolsuper,false); assert.equal(role.rolbypassrls,false);
+  const a=randomUUID(), b=randomUUID(), a1=randomUUID(), a2=randomUUID(), b1=randomUUID(), ca=randomUUID(), cb=randomUUID(), apt=randomUUID(), device1=randomUUID(), device2=randomUUID();
+  const suffix=randomUUID().slice(0,8);
+  await operator.query('INSERT INTO tenant(id,name,slug) VALUES($1,$2,$2),($3,$4,$4)',[a,`test-a-${suffix}`,b,`test-b-${suffix}`]);
+  await operator.query('INSERT INTO branch(id,tenant_id,name,slug) VALUES($1,$2,\'A1\',\'main\'),($3,$2,\'A2\',\'second\'),($4,$5,\'B1\',\'main\')',[a1,a,a2,b1,b]);
+  await operator.query('INSERT INTO client(id,tenant_id,name,phone) VALUES($1,$2,\'A customer\',\'01700000000\'),($3,$4,\'B customer\',\'01700000000\')',[ca,a,cb,b]);
+  await operator.query('INSERT INTO auth(tenant_id,useremail,password,role) VALUES($1,\'shared@example.test\',\'test-hash\',\'admin\'),($2,\'shared@example.test\',\'test-hash\',\'admin\')',[a,b]);
+  await operator.query('INSERT INTO role_permission(tenant_id,role,permissions) VALUES($1,\'staff\',\'appointments\'),($2,\'staff\',\'appointments\')',[a,b]);
+  await operator.query('INSERT INTO appointment(id,tenant_id,branch_id,"phoneNumber","clientName",date,time,source) VALUES($1,$2,$3,\'01700000000\',\'A customer\',\'2026-10-02\',\'10:00\',\'test\')',[apt,a,a2]);
+  const foreignEmployee = randomUUID();
+  await operator.query('INSERT INTO employee(id,tenant_id,branch_id,name,phone) VALUES($1,$2,$3,\'Foreign employee\',\'01800000000\')',[foreignEmployee,b,b1]);
+  const secret=createHash('sha256').update('test-device-secret').digest('hex');
+  await operator.query('INSERT INTO registered_device(id,tenant_id,branch_id,serial,"secretHash") VALUES($1,$2,$3,$4,$5),($6,$2,$3,$7,$5)',[device1,a,a1,`TEST-${suffix}-1`,secret,device2,`TEST-${suffix}-2`]);
+  await operator.query('INSERT INTO device_user(tenant_id,branch_id,device_id,"deviceUid",name) VALUES($1,$2,$3,\'7\',\'Device 1 user\'),($1,$2,$4,\'7\',\'Device 2 user\')',[a,a1,device1,device2]);
+  const scope = async (tenantId,branchId,work,deviceId='') => ds.transaction(async manager => {
+    await manager.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.branch_id',$2,true),set_config('app.device_id',$3,true),set_config('app.all_branches','false',true)",[tenantId,branchId,deviceId]);
+    return work(manager);
+  });
+  assert.equal((await ds.query('SELECT * FROM client')).length,0,'missing tenant context must expose nothing');
+  await assert.rejects(ds.query("INSERT INTO client(name,phone) VALUES('Unscoped','01900000000')"));
+  await scope(a,a1,async m => {
+    assert.deepEqual((await m.query('SELECT id FROM client')).map(r=>r.id),[ca]);
+    assert.equal((await m.query('SELECT * FROM appointment')).length,0,'other branch hidden');
+    const updated = await m.query('UPDATE client SET name=\'stolen\' WHERE id=$1 RETURNING id',[cb]);
+    assert.equal(Array.isArray(updated[0]) ? updated[0].length : updated.length, 0);
+    await assert.rejects(m.transaction(n => n.query('INSERT INTO client(tenant_id,name,phone) VALUES($1,\'intruder\',\'01900000001\')',[b])));
+    await assert.rejects(m.transaction(n => n.query('INSERT INTO invoice(tenant_id,branch_id,"invoiceNumber",staff,total,"clientId") VALUES($1,$2,\'BAD-CUSTOMER\',\'N/A\',1,$3)',[a,a1,cb])));
+    await assert.rejects(m.transaction(n => n.query('INSERT INTO invoice(tenant_id,branch_id,"invoiceNumber",staff,total,appointment_id) VALUES($1,$2,\'BAD-BRANCH\',\'N/A\',1,$3)',[a,a1,apt])));
+    await assert.rejects(m.transaction(n => n.query('INSERT INTO auth(useremail,password,role,\"employeeId\") VALUES(\'foreign-link@example.test\',\'test-hash\',\'admin\',$1)',[foreignEmployee])),'Null admin branch must not bypass employee tenant foreign key');
+    await m.query("SELECT set_config('app.all_branches','true',true),set_config('app.branch_id','',true)");
+    assert.equal((await m.query('SELECT * FROM appointment')).length,1);
+    await assert.rejects(m.transaction(n => n.query("INSERT INTO appointment(\"phoneNumber\",\"clientName\",date,time,source) VALUES('01700000000','write','2026-10-02','10:00','test')")));
+  });
+  await scope(b,b1,async m => assert.deepEqual((await m.query('SELECT id FROM client')).map(r=>r.id),[cb]));
+  assert.equal((await ds.query('SELECT * FROM client')).length,0,'pooled connection must not retain tenant context');
+  await assert.rejects(scope(a,a1,async m => { await m.query("INSERT INTO client(name,phone) VALUES('rollback','01900000002')"); throw new Error('rollback'); }));
+  await scope(a,a1,async m => assert.equal((await m.query("SELECT * FROM client WHERE phone='01900000002'")).length,0));
+  await scope(a,a1,async m => assert.equal((await m.query('SELECT name FROM device_user'))[0].name,'Device 1 user'),device1);
+  await scope(a,a1,async m => assert.equal((await m.query('SELECT name FROM device_user'))[0].name,'Device 2 user'),device2);
+  assert.equal((await ds.query('SELECT * FROM resolve_device($1,$2,$3)',[`TEST-${suffix}-1`,'','127.0.0.1'])).length,0,'serial alone is not authentication');
+  assert.equal((await ds.query('SELECT * FROM resolve_device($1,$2,$3)',[`TEST-${suffix}-1`,secret,'127.0.0.1']))[0].device_id,device1);
+  assert.equal((await ds.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'ai_%'")).length,0);
+  assert.equal((await ds.query("SELECT extname FROM pg_extension WHERE extname='vector'")).length,0);
+  // Same long-lived command queue isolates overlapping IDs across device contexts.
+  const queue = new AdmsCommandQueue();
+  const runQueue = (deviceId,work) => tenantStorage.run({tenantId:a,branchId:a1,deviceId,runner:{isReleased:false},afterCommit:[]},work);
+  runQueue(device1,()=>queue.enqueue('SAME-SERIAL','INFO'));
+  assert.equal(runQueue(device2,()=>queue.pendingCount('SAME-SERIAL')),0);
+  assert.equal(runQueue(device1,()=>queue.pendingCount('SAME-SERIAL')),1);
+  await ds.destroy(); await operator.end();
+  console.log('PASS: PostgreSQL tenant/branch/device isolation, duplicate identities, composite references, raw SQL, missing context, pool reuse, aggregate writes, rollback, device authentication, AI-free schema and device queue isolation');
+})().catch(error => { console.error(error); process.exit(1); });
