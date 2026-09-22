@@ -1,0 +1,50 @@
+# Browser API requests use the salon origin and Next.js /api/backend proxy.
+services:
+  StyleDesk-client:
+    image: node:22-alpine
+    container_name: StyleDesk-client-dev
+    working_dir: /app
+    volumes:
+      - .:/app
+      - client_node_modules:/app/node_modules
+      - client_next:/app/.next
+    command: >
+       sh -c "npm install -g pnpm@9.15.0 &&
+              pnpm install --config.confirmModulesPurge=false &&
+              pnpm run dev:docker"
+    restart: unless-stopped
+    networks:
+      - StyleDesk-dev
+    ports:
+      - "3000:3000"
+    environment:
+      # Browser-side API URL — points to the host port exposed by the server stack.
+      # SSR-side API URL — reaches the server container directly via shared Docker network.
+      PLATFORM_HOST: ${PLATFORM_HOST:-localhost}
+      NEXT_PUBLIC_PLATFORM_HOST: ${PLATFORM_HOST:-localhost}
+      INTERNAL_API_BASE_URL: http://StyleDesk-server-dev:4000
+      NEXT_TELEMETRY_DISABLED: "1"
+      # File-watch polling required inside Docker on Linux.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "800"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000', (res) => process.exit(res.statusCode >= 200 && res.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+networks:
+  StyleDesk-dev:
+    external: true
+    name: StyleDesk-dev
+
+volumes:
+  client_node_modules:
+  client_next:
