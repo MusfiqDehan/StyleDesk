@@ -1,0 +1,64 @@
+# Browser API requests use the salon origin and Next.js /api/backend proxy.
+services:
+  StyleDesk-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_PLATFORM_HOST: ${PLATFORM_HOST:-styledesk.musfiqdehan.com}
+        NEXT_PUBLIC_API_BASE_URL: /api/backend
+        NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN:-example.com}
+    image: styledesk-client:prod
+    container_name: StyleDesk-client
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      IMAGE_ALLOWED_ORIGINS: ${IMAGE_ALLOWED_ORIGINS:-}
+      PLATFORM_HOST: ${PLATFORM_HOST:-styledesk.musfiqdehan.com}
+      NEXT_PUBLIC_PLATFORM_HOST: ${PLATFORM_HOST:-styledesk.musfiqdehan.com}
+      INTERNAL_API_BASE_URL: http://StyleDesk-server:4000
+    networks:
+      - traefik_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
+      - "traefik.http.services.StyleDesk-client.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.StyleDesk-compress.compress=true"
+      - "traefik.http.middlewares.StyleDesk-client-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.StyleDesk-client-redirect.redirectscheme.permanent=true"
+
+      # ── HTTPS (catch-all for frontend, lower priority than /api backend) ──
+      - "traefik.http.routers.StyleDesk-client.rule=(${TENANT_HOST_RULE:?Set wildcard tenant host rule})"
+      - "traefik.http.routers.StyleDesk-client.entrypoints=websecure"
+      - "traefik.http.routers.StyleDesk-client.tls=true"
+      - "traefik.http.routers.StyleDesk-client.tls.certresolver=${TLS_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.StyleDesk-client.priority=120"
+      - "traefik.http.routers.StyleDesk-client.middlewares=StyleDesk-compress"
+      - "traefik.http.routers.StyleDesk-client.service=StyleDesk-client"
+
+      # ── HTTP → HTTPS (skip ACME challenge path) ──
+      - "traefik.http.routers.StyleDesk-client-http.rule=(${TENANT_HOST_RULE:?Set wildcard tenant host rule}) && !PathPrefix(`/.well-known/acme-challenge/`)"
+      - "traefik.http.routers.StyleDesk-client-http.entrypoints=web"
+      - "traefik.http.routers.StyleDesk-client-http.priority=115"
+      - "traefik.http.routers.StyleDesk-client-http.middlewares=StyleDesk-client-redirect"
+      - "traefik.http.routers.StyleDesk-client-http.service=StyleDesk-client"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000', (res) => process.exit(res.statusCode >= 200 && res.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  traefik_proxy:
+    external: true
+    name: traefik_proxy
