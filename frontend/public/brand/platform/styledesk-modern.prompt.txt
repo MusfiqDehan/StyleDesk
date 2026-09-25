@@ -1,0 +1,5 @@
+Mode: built-in image_gen (transparent background).
+Animation: CSS in components/brand-logo.module.css; respects prefers-reduced-motion.
+Saved asset: public/brand/platform/styledesk-modern.png
+
+Use case: logo-brand. Asset type: StyleDesk salon management platform logo mark for website navigation. Primary request: a modern relatable compact symbol combining flowing S-shaped ribbon with salon scissors and a subtle appointment sparkle. Style: polished minimal vector-friendly flat mark, distinctive rounded silhouette, purple #7040c1 with lavender highlights. Composition: one centered standalone mark, generous transparent padding, clear at small sizes. Constraints: genuinely transparent background, no text, no letters, no border, no mockup, no watermark. The mark will be gently animated using CSS in the website.
