@@ -1,0 +1,85 @@
+.brand {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--brand-ink);
+  font-family: var(--font-inter), sans-serif;
+}
+.mark {
+  display: block;
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+}
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wordmark strong {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.wordmark > span {
+  color: var(--brand-text, #7040c1);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.25px;
+}
+.brand:focus-visible {
+  outline: 3px solid var(--brand-text, #7040c1);
+  outline-offset: 5px;
+  border-radius: 8px;
+}
+.sidebar {
+  min-width: 0;
+  gap: 9px;
+}
+.sidebar .mark {
+  width: 38px;
+  height: 38px;
+}
+.sidebar .wordmark {
+  min-width: 0;
+}
+.sidebar .wordmark strong {
+  font-size: 17px;
+  letter-spacing: -0.8px;
+  white-space: nowrap;
+}
+.sidebar .wordmark > span {
+  font-size: 9px;
+  white-space: nowrap;
+}
+.markOnly .mark {
+  width: 32px;
+  height: 32px;
+}
+@media (max-width: 760px) {
+  .mark {
+    width: 39px;
+    height: 39px;
+  }
+  .wordmark strong {
+    font-size: 21px;
+  }
+  .wordmark > span {
+    font-size: 9px;
+  }
+  .brand {
+    gap: 8px;
+  }
+}
+
+.brand .mark { object-fit: contain; transition: transform .3s ease; animation: brand-breathe 5s ease-in-out infinite; }
+.brand:hover .mark { transform: rotate(-8deg) scale(1.08); }
+@keyframes brand-breathe { 50% { translate: 0 -2px; } }
+@media (prefers-reduced-motion: reduce) { .brand .mark { animation: none; transition: none; } }
+.wordmark strong { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar .wordmark strong { max-width: 155px; }
+@media (max-width: 760px) { .wordmark strong { max-width: 140px; } }
