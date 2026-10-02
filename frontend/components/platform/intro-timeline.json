@@ -1,0 +1,188 @@
+{
+  "title": "StyleDesk \u2014 A clearer day",
+  "primary": "#7040c1",
+  "language": "en-US",
+  "scenes": [
+    {
+      "id": "intro",
+      "chapter": "Meet StyleDesk",
+      "eyebrow": "YOUR CRAFT. YOUR COMPANY.",
+      "title": "Good days start\nwith a clear desk.",
+      "benefit": "One workspace for the way your salon works.",
+      "lines": [
+        "A busy salon has a lot of moving parts.",
+        "Meet Style Desk, by Musfiq Dehan. Bring your bookings, people, payments, and brand into one calm workspace."
+      ],
+      "start": 0,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 3.254,
+          "text": "A busy salon has a lot of moving parts."
+        },
+        {
+          "start": 3.474,
+          "end": 10.254,
+          "text": "Meet StyleDesk, by Musfiq Dehan. Bring your bookings, people, payments, and brand into one calm workspace."
+        }
+      ],
+      "duration": 11.324
+    },
+    {
+      "id": "bookings",
+      "chapter": "Bookings & clients",
+      "eyebrow": "FROM FIRST BOOKING TO NEXT VISIT",
+      "title": "A smoother day.\nA warmer welcome.",
+      "benefit": "Clear schedules. Connected client records.",
+      "lines": [
+        "Bring online bookings, walk-ins, services, and client records together.",
+        "Give your team a clear view of what's next, and your customers a smoother visit."
+      ],
+      "start": 11.324,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 5.193,
+          "text": "Bring online bookings, walk-ins, services, and client records together."
+        },
+        {
+          "start": 5.413,
+          "end": 9.79,
+          "text": "Give your team a clear view of what's next, and your customers a smoother visit."
+        }
+      ],
+      "duration": 10.86
+    },
+    {
+      "id": "team",
+      "chapter": "People & branches",
+      "eyebrow": "EVERYONE, IN SYNC",
+      "title": "Your people.\nOne clear rhythm.",
+      "benefit": "Roles, attendance, leave and payroll in one place.",
+      "lines": [
+        "Keep people in sync with staff roles, attendance, leave, and payroll.",
+        "Branch-aware workflows help teams at different locations focus on their own day."
+      ],
+      "start": 22.184,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 4.914,
+          "text": "Keep people in sync with staff roles, attendance, leave, and payroll."
+        },
+        {
+          "start": 5.134,
+          "end": 9.511,
+          "text": "Branch-aware workflows help teams at different locations focus on their own day."
+        }
+      ],
+      "duration": 10.581
+    },
+    {
+      "id": "payments",
+      "chapter": "Sales & operations",
+      "eyebrow": "FOLLOW THE DETAILS THAT MATTER",
+      "title": "From service\nto a clear checkout.",
+      "benefit": "Invoices, income, expenses and inventory.",
+      "lines": [
+        "Move from service to checkout with point of sale, invoices, and payment tracking.",
+        "Follow income, expenses, and stock alerts with a clearer picture of daily operations."
+      ],
+      "start": 32.766,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 5.727,
+          "text": "Move from service to checkout with point of sale, invoices, and payment tracking."
+        },
+        {
+          "start": 5.947,
+          "end": 11.299,
+          "text": "Follow income, expenses, and stock alerts with a clearer picture of daily operations."
+        }
+      ],
+      "duration": 12.369
+    },
+    {
+      "id": "brand",
+      "chapter": "Your salon online",
+      "eyebrow": "YOUR SALON. YOUR BRAND.",
+      "title": "A space that\nfeels like you.",
+      "benefit": "Your company name, logo and salon website.",
+      "lines": [
+        "Make your salon website your own with your company name, logo, and content.",
+        "Eligible plans can connect a custom domain and enable online customer payments."
+      ],
+      "start": 45.135,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 5.367,
+          "text": "Make your salon website your own with your company name, logo, and content."
+        },
+        {
+          "start": 5.587,
+          "end": 10.196,
+          "text": "Eligible plans can connect a custom domain and enable online customer payments."
+        }
+      ],
+      "duration": 11.266
+    },
+    {
+      "id": "insights",
+      "chapter": "Business insights",
+      "eyebrow": "A LITTLE CLARITY. MORE ROOM TO GROW.",
+      "title": "See the story\nbehind your day.",
+      "benefit": "Less piecing information together. More informed decisions.",
+      "lines": [
+        "Explore interactive dashboards and reports for bookings, revenue, and staff performance.",
+        "Spend less time piecing information together, and more time shaping your business."
+      ],
+      "start": 56.401,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 6.342,
+          "text": "Explore interactive dashboards and reports for bookings, revenue, and staff performance."
+        },
+        {
+          "start": 6.562,
+          "end": 10.997,
+          "text": "Spend less time piecing information together, and more time shaping your business."
+        }
+      ],
+      "duration": 12.067
+    },
+    {
+      "id": "start",
+      "chapter": "Your next chapter",
+      "eyebrow": "MAKE ROOM FOR WHAT YOU LOVE",
+      "title": "Your next chapter\nstarts here.",
+      "benefit": "Explore packages or begin your Starter trial.",
+      "lines": [
+        "Choose the capabilities you need today, and grow when you're ready.",
+        "Explore Style Desk packages, or begin your Starter trial. Good days start with a clear desk."
+      ],
+      "start": 68.469,
+      "cues": [
+        {
+          "start": 0.7,
+          "end": 4.218,
+          "text": "Choose the capabilities you need today, and grow when you're ready."
+        },
+        {
+          "start": 4.438,
+          "end": 10.371,
+          "text": "Explore StyleDesk packages, or begin your Starter trial. Good days start with a clear desk."
+        }
+      ],
+      "duration": 11.441
+    }
+  ],
+  "duration": 79.909,
+  "fps": 24,
+  "resolution": [
+    1920,
+    1080
+  ]
+}
