@@ -1,0 +1,75 @@
+/* Sidebar item colors use brand tokens directly so hover/active
+   always show purple even if Tailwind brand-* utilities are missing. */
+
+.active {
+  background-color: var(--brand-soft) !important;
+  color: var(--brand-text) !important;
+  border-color: var(--brand-line);
+  box-shadow: inset 3px 0 var(--brand-primary);
+}
+
+.idle:hover {
+  background-color: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.icon {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.iconActive {
+  background-color: transparent;
+  color: var(--brand-text);
+}
+
+.iconIdle {
+  background-color: transparent;
+  color: var(--brand-muted);
+}
+
+.idle:hover .iconIdle {
+  background-color: transparent;
+  color: var(--brand-text);
+}
+
+.rail {
+  display: none;
+}
+
+.active .rail {
+  background-color: #fff;
+  opacity: 1;
+}
+
+.idle:hover .rail {
+  opacity: 1;
+}
+
+.childDot {
+  background-color: var(--brand-line);
+}
+
+.idle:hover .childDot {
+  background-color: var(--brand-primary);
+}
+
+.active .childDot {
+  background-color: var(--brand-primary);
+  transform: scale(1.25);
+}
+
+.chevronIdle {
+  color: var(--brand-muted);
+}
+
+.idle:hover .chevronIdle {
+  color: var(--brand-primary);
+}
+
+.chevronActive {
+  color: var(--brand-text);
+}
