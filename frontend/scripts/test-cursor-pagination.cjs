@@ -1,0 +1,18 @@
+// Run with: node --experimental-strip-types scripts/test-cursor-pagination.cjs
+const assert = require('node:assert/strict')
+const { cursorWindow } = require('../lib/pagination/cursor.ts')
+const rows = Array.from({ length: 26 }, (_, i) => ({ id: String(i), name: `Row ${i}` }))
+const key = row => row.id
+const first = cursorWindow(rows, key, null)
+const second = cursorWindow(rows, key, first.pageInfo.nextCursor)
+const third = cursorWindow(rows, key, second.pageInfo.nextCursor)
+assert.deepEqual([first.data.length,second.data.length,third.data.length],[10,10,6])
+assert.equal(new Set([...first.data,...second.data,...third.data].map(key)).size,26)
+assert.deepEqual(cursorWindow(rows,key,third.pageInfo.previousCursor).data,second.data)
+assert.deepEqual(cursorWindow(rows,key,second.pageInfo.previousCursor).data,first.data)
+assert.deepEqual(cursorWindow(rows.filter(row=>row.id==='25'),key,second.pageInfo.nextCursor).data,[rows[25]])
+assert.equal(cursorWindow([],key,null).pageInfo.total,0)
+assert.equal(third.pageInfo.hasNextPage,false)
+assert.equal(first.pageInfo.hasPreviousPage,false)
+assert.equal(cursorWindow(rows,key,'invalid').pageInfo.page,1)
+console.log('PASS: 10/10/6 rows, forward/backward, unique coverage, removed anchors, empty and invalid cursors')
