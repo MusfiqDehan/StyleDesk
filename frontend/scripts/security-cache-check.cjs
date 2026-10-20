@@ -1,0 +1,24 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const vm = require('node:vm');
+const values = new Map([['aci:old-user', 'sensitive'], ['accessToken', 'user-a']]);
+const localStorage = { getItem: key => values.get(key), removeItem: key => values.delete(key), 'aci:old-user': 'sensitive' };
+const source = ts.transpileModule(fs.readFileSync('app/admin/api/base.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+const context = { exports: {}, require, process, window: { location: { pathname: '/' } }, localStorage, setTimeout, clearTimeout, setInterval, clearInterval };
+vm.runInNewContext(source, context);
+const api = context.exports.default;
+let calls = 0;
+api.defaults.adapter = async config => ({ data: { account: config.headers.Authorization }, status: 200, statusText: 'OK', headers: {}, config, request: {} });
+const adapter = api.defaults.adapter;
+api.defaults.adapter = async config => { calls++; return adapter(config); };
+(async () => {
+  assert.equal(values.has('aci:old-user'), false);
+  const first = await api.get('/private', { cache: { ttl: 60000 } });
+  values.set('accessToken', 'user-b');
+  const second = await api.get('/private', { cache: { ttl: 60000 } });
+  assert.equal(first.data.account, 'Bearer user-a');
+  assert.equal(second.data.account, 'Bearer user-b');
+  assert.equal(calls, 2);
+  console.log('PASS: private responses do not cross accounts; legacy persisted cache removed');
+})().catch(error => { console.error(error); process.exitCode = 1; });
