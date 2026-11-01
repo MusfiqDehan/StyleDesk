@@ -7,6 +7,8 @@ services:
     image: styledesk-server:prod
     container_name: StyleDesk-server
     restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.5
     # Host 4400 → container 4000 for ZKTeco ADMS push (http://<VPS_IP>:4400/iclock).
     ports:
       - "${ADMS_HOST_PORT:-4400}:4000"
@@ -83,6 +85,12 @@ services:
       - "traefik.http.routers.StyleDesk-api-http.priority=125"
       - "traefik.http.routers.StyleDesk-api-http.middlewares=StyleDesk-redirect"
       - "traefik.http.routers.StyleDesk-api-http.service=StyleDesk-api"
+      - "autoheal=false"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test:
         [
@@ -100,6 +108,8 @@ services:
   StyleDesk-domain-worker:
     image: styledesk-server:prod
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       <<: *styledesk-runtime-environment
       DOMAIN_WORKER: "true"
@@ -114,7 +124,12 @@ services:
       - traefik_proxy
     labels:
       - "traefik.enable=false"
-
+      - "autoheal=false"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   StyleDesk-postgres:
     image: postgres:16
@@ -124,27 +139,41 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-styledesk_tenancy}
     container_name: StyleDesk-postgres
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   StyleDesk-redis:
     image: redis:7-alpine
     container_name: StyleDesk-redis
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
     networks:
       - backend
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   traefik_proxy:

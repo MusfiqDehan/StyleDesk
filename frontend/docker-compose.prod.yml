@@ -11,6 +11,8 @@ services:
     image: styledesk-client:prod
     container_name: StyleDesk-client
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     expose:
       - "3000"
     environment:
@@ -45,6 +47,12 @@ services:
       - "traefik.http.routers.StyleDesk-client-http.priority=115"
       - "traefik.http.routers.StyleDesk-client-http.middlewares=StyleDesk-client-redirect"
       - "traefik.http.routers.StyleDesk-client-http.service=StyleDesk-client"
+      - "autoheal=false"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test:
         [
